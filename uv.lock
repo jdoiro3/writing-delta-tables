@@ -29,9 +29,9 @@ wheels = [
 ]
 
 [[package]]
-name = "delta"
+name = "delta-writer"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "deltalake" },
     { name = "faker" },
