@@ -14,45 +14,14 @@ from random import choice
 from string import ascii_uppercase
 from pathlib import Path
 from delta_writer.writing import DeltaWriter
+from delta_writer.utils import split
+from delta_writer.datamodel import Person, person_schema, new_person
 
 
-T = ty.TypeVar("T")
-
-
-faker = Faker()
-
-class Person(ty.TypedDict):
-    id: int
-    age: int
-    name: str
-    address: str
-    random_data: str
-
-
-person_schema = pa.schema([
-    ("id", pa.int32()),
-    ("age", pa.int32()),
-    ("name", pa.string()),
-    ("address", pa.string()),
-    ("random_data", pa.string())
-])
-
-
-def new_person(id: int) -> Person:
-    return Person(
-        id=id,
-        age=random.randint(1, 100),
-        name=faker.name(),
-        address=faker.address(),
-        random_data=""
-    )
-    
-
-
-def pipeline(file: Path, table: deltalake.DeltaTable):
+def pipeline(file: Path, table: Path | str):
     written = 0
     not_written = 0
-    with DeltaWriter[Person](table, person_schema, "age", "id") as w:
+    with DeltaWriter[Person](deltalake.DeltaTable(table), person_schema, "age", "id") as w:
         pq_f = pq.ParquetFile(file)
         for i in range(pq_f.num_row_groups):
             ps = list(w.not_written(pq_f.read_row_group(i)))
@@ -62,19 +31,18 @@ def pipeline(file: Path, table: deltalake.DeltaTable):
                 desc=f"Processing {file.name} and row group {i+1}:", 
                 total=len(ps)
             ):
-                # randomly fail 5% of the time
+                # Note: We randomly fail 5% of the time, simulating a person not 
+                # being able to be processed for some reason.
                 if random.randrange(100) < .05:
                     not_written += 1
                 else:
-                    p["random_data"] = "".join(choice(ascii_uppercase) for _ in range(random.randint(100, 1_000)))
+                    p["random_data"] = "".join(
+                        choice(ascii_uppercase) 
+                        for _ in range(random.randint(100, 10_000))
+                    )
                     w.write(p)
                     written += 1
     return written, not_written
-
-
-def split(a: list[T], n: int) -> list[list[T]]:
-    k, m = divmod(len(a), n)
-    return (a[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n))
 
 
 class Executer(Enum):
@@ -100,7 +68,7 @@ def process(people_files: ty.Iterable[Path], executer: Executer = Executer.Proce
 
     writes, not_written = 0, 0
     with exec as e, MultiProgress():
-        for w, nw in list(e.map(partial(pipeline, table=table), people_files)):
+        for w, nw in list(e.map(partial(pipeline, table=path), people_files)):
             writes += w
             not_written += nw
 
@@ -128,7 +96,7 @@ def get_new_people(ids: list[int], input_dir: Path = Path()) -> Path:
         return where
 
 
-def process_people(num_p: int = 100_000, executer: Executer = Executer.Processes) -> int:
+def process_people(num_p: int = 100_000, executer: Executer = Executer.Processes.value) -> int:
     cpus = os.cpu_count() or 1
     input_dir = Path("input")
     if not input_dir.exists():
