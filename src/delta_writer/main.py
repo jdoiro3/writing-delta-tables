@@ -24,23 +24,24 @@ def pipeline(file: Path, table: Path | str):
         pq_f = pq.ParquetFile(file)
         for i in range(pq_f.num_row_groups):
             ps = list(w.not_written(pq_f.read_row_group(i)))
-            for p in progress_bar(
-                ps, 
-                id=f"{file.name}{i}", 
-                desc=f"Processing {file.name} and row group {i+1}:", 
-                total=len(ps)
-            ):
-                # Note: We randomly fail 5% of the time, simulating a person not 
-                # being able to be processed for some reason.
-                if random.randrange(100) < .05:
-                    not_written += 1
-                else:
-                    p["random_data"] = "".join(
-                        choice(ascii_uppercase) 
-                        for _ in range(random.randint(100, 10_000))
-                    )
-                    w.write(p)
-                    written += 1
+            if ps:
+                for p in progress_bar(
+                    ps, 
+                    id=f"{file.name}{i}", 
+                    desc=f"Processing {file.name} and row group {i+1}:", 
+                    total=len(ps)
+                ):
+                    # Note: We randomly fail 5% of the time, simulating a person not 
+                    # being able to be processed for some reason.
+                    if random.randrange(100) < .05:
+                        not_written += 1
+                    else:
+                        p["random_data"] = "".join(
+                            choice(ascii_uppercase) 
+                            for _ in range(random.randint(100, 10_000))
+                        )
+                        w.write(p)
+                        written += 1
     return written, not_written
 
 
@@ -72,7 +73,7 @@ def process(people_files: ty.Iterable[Path], executer: Executer = Executer.Proce
         """
         table.create_checkpoint()
         print(table.optimize.compact())
-        table.vacuum(retention_hours=0, dry_run=False)
+        table.vacuum(retention_hours=0, dry_run=False, enforce_retention_duration=False)
 
     optimize_thread = RepeatTimer(20.0, optimize)
     optimize_thread.start()

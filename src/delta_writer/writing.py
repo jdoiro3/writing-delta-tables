@@ -30,8 +30,9 @@ class DiskBuffer(ty.Generic[T]):
     def flush(self, write: ty.Callable[[pa.Table], None]) -> int:
         self._arrow_file.write(pa.RecordBatch.from_pylist(self._arrow_buffer, schema=self.schema))
         self._arrow_file.close()
-        table = ipc.open_file(pa.memory_map(self._tempf.name, mode="rb")).read_all()
-        write(table)
+        table: pa.Table = ipc.open_file(pa.memory_map(self._tempf.name, mode="rb")).read_all()
+        if table.num_rows > 0:
+            write(table)
         self._tempf.close()
         self.reset()
         return table.num_rows
