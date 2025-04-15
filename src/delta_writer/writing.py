@@ -48,7 +48,7 @@ class DeltaWriter(ty.Generic[T]):
     ):
         self.partition_col = partition_col
         self.id_col = id_col
-        self._buffer = DiskBuffer[T](arrow_record_batch_size=10_000, schema=schema)
+        self._buffer = DiskBuffer[T](arrow_record_batch_size=5_000, schema=schema)
         self.delta_table = delta_table
         self.writes_before_flush = writes_before_flush
         self._writes = 0

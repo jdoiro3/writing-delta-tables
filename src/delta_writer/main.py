@@ -9,12 +9,11 @@ from multiprogress import progress_bar, MultiProgress
 import typer
 from enum import Enum
 from functools import partial
-from faker import Faker
 from random import choice
 from string import ascii_uppercase
 from pathlib import Path
 from delta_writer.writing import DeltaWriter
-from delta_writer.utils import split
+from delta_writer.utils import split, RepeatTimer
 from delta_writer.datamodel import Person, person_schema, new_person
 
 
@@ -27,7 +26,7 @@ def pipeline(file: Path, table: Path | str):
             ps = list(w.not_written(pq_f.read_row_group(i)))
             for p in progress_bar(
                 ps, 
-                id=f"{file.name}{i+1}", 
+                id=f"{file.name}{i}", 
                 desc=f"Processing {file.name} and row group {i+1}:", 
                 total=len(ps)
             ):
@@ -66,15 +65,26 @@ def process(people_files: ty.Iterable[Path], executer: Executer = Executer.Proce
         )
     )
 
+    def optimize():
+        """
+        Checkpoints allow for efficient table queries and 
+        compact merges small parquet files into larger one.
+        """
+        table.create_checkpoint()
+        print(table.optimize.compact())
+        table.vacuum(retention_hours=0, dry_run=False)
+
+    optimize_thread = RepeatTimer(20.0, optimize)
+    optimize_thread.start()
+
     writes, not_written = 0, 0
     with exec as e, MultiProgress():
         for w, nw in list(e.map(partial(pipeline, table=path), people_files)):
             writes += w
             not_written += nw
 
-    table.optimize.compact()
-    table.create_checkpoint()
-    table.vacuum(retention_hours=0, enforce_retention_duration=False, dry_run=False)
+    optimize_thread.cancel()
+    optimize()
 
     print(f"Written: {writes}, Not written: {not_written}")
     num_rows = table.to_pyarrow_table(columns=["id"]).num_rows
