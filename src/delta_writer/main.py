@@ -21,7 +21,7 @@ def pipeline(file: Path, table: Path | str):
     written = 0
     not_written = 0
     with DeltaWriter[Person](deltalake.DeltaTable(table), person_schema, "age", "id") as w:
-        pq_f = pq.ParquetFile(file)
+        pq_f = pq.ParquetFile(file, memory_map=True)
         for i in range(pq_f.num_row_groups):
             ps = list(w.not_written(pq_f.read_row_group(i)))
             if ps:
@@ -75,7 +75,7 @@ def process(people_files: ty.Iterable[Path], executer: Executer = Executer.Proce
         print(table.optimize.compact())
         table.vacuum(retention_hours=0, dry_run=False, enforce_retention_duration=False)
 
-    optimize_thread = RepeatTimer(20.0, optimize)
+    optimize_thread = RepeatTimer(60.0, optimize)
     optimize_thread.start()
 
     writes, not_written = 0, 0
