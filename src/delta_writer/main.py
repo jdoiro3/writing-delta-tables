@@ -76,7 +76,7 @@ def process(people_files: ty.Iterable[Path], executer: Executer = Executer.Proce
         print(table.optimize.compact())
         print(len(table.files()))
 
-    optimize_thread = RepeatTimer(60.0, optimize)
+    optimize_thread = RepeatTimer(30.0, optimize)
     optimize_thread.start()
 
     writes, not_written = 0, 0
@@ -91,7 +91,6 @@ def process(people_files: ty.Iterable[Path], executer: Executer = Executer.Proce
     num_rows = table.to_pyarrow_table(columns=["id"]).num_rows
     print(f"Written: {writes}, Not written: {not_written}")
     print(f"Number of rows delta table: {num_rows}")
-    table.vacuum(retention_hours=0, dry_run=False, enforce_retention_duration=False)
 
     return num_rows
 
