@@ -12,3 +12,4 @@ class RepeatTimer(Timer):
     def run(self):
         while not self.finished.wait(self.interval):
             self.function(*self.args, **self.kwargs)
+        self.function(*self.args, **self.kwargs)

@@ -65,15 +65,16 @@ def process(people_files: ty.Iterable[Path], executer: Executer = Executer.Proce
             configuration = {"delta.logRetentionDuration": "0 days"}
         )
     )
+    print(len(table.files()))
 
     def optimize():
         """
         Checkpoints allow for efficient table queries and 
-        compact merges small parquet files into larger one.
+        compact merges small parquet files into larger ones.
         """
         table.create_checkpoint()
         print(table.optimize.compact())
-        table.vacuum(retention_hours=0, dry_run=False, enforce_retention_duration=False)
+        print(len(table.files()))
 
     optimize_thread = RepeatTimer(60.0, optimize)
     optimize_thread.start()
@@ -85,11 +86,12 @@ def process(people_files: ty.Iterable[Path], executer: Executer = Executer.Proce
             not_written += nw
 
     optimize_thread.cancel()
-    optimize()
 
-    print(f"Written: {writes}, Not written: {not_written}")
+    table = deltalake.DeltaTable(path)
     num_rows = table.to_pyarrow_table(columns=["id"]).num_rows
+    print(f"Written: {writes}, Not written: {not_written}")
     print(f"Number of rows delta table: {num_rows}")
+    table.vacuum(retention_hours=0, dry_run=False, enforce_retention_duration=False)
 
     return num_rows
 
