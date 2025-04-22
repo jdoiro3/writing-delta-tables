@@ -10,7 +10,7 @@ T = ty.TypeVar("T", bound=dict)
 
 
 class DiskBuffer(ty.Generic[T]):
-    def __init__(self, schema: pa.Schema, arrow_record_batch_size: int = 5_000):
+    def __init__(self, schema: pa.Schema, arrow_record_batch_size: int):
         self.schema = schema
         self._arrow_record_batch_size = arrow_record_batch_size
         self.reset()
@@ -45,13 +45,14 @@ class DeltaWriter(ty.Generic[T]):
             schema: pa.Schema,
             partition_col: str,
             id_col: str,
-            writes_before_flush: int = 20_000
+            recs_per_commit: int,
+            max_recs_in_memory: int = 5_000
     ):
         self.partition_col = partition_col
         self.id_col = id_col
-        self._buffer = DiskBuffer[T](arrow_record_batch_size=5_000, schema=schema)
+        self._buffer = DiskBuffer[T](schema, max_recs_in_memory)
         self.delta_table = delta_table
-        self.writes_before_flush = writes_before_flush
+        self.recs_per_commit = recs_per_commit
         self._writes = 0
         
     def __enter__(self):
@@ -85,6 +86,6 @@ class DeltaWriter(ty.Generic[T]):
     def write(self, rec: T):
         self._buffer.put(rec)
         self._writes += 1
-        if self._writes == self.writes_before_flush:
+        if self._writes == self.recs_per_commit:
             self._buffer.flush(self._w)
             self._writes = 0

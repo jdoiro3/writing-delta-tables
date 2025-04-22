@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-process-people = "delta_writer.main:run"
+people = "delta_writer.main:run"
 
 [build-system]
 requires = ["hatchling"]
